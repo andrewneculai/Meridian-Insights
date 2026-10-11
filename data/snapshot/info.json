@@ -1,0 +1,30 @@
+{
+  "AAPL": {
+    "name": "Apple Inc.",
+    "sector": "Technology"
+  },
+  "MSFT": {
+    "name": "Microsoft Corporation",
+    "sector": "Technology"
+  },
+  "NVDA": {
+    "name": "NVIDIA Corporation",
+    "sector": "Technology"
+  },
+  "JPM": {
+    "name": "JP Morgan Chase & Co.",
+    "sector": "Financial Services"
+  },
+  "XOM": {
+    "name": "ExxonMobil Holdings Corporation",
+    "sector": "Energy"
+  },
+  "JNJ": {
+    "name": "Johnson & Johnson",
+    "sector": "Healthcare"
+  },
+  "SPY": {
+    "name": "State Street SPDR S&P 500 ETF T",
+    "sector": "ETF"
+  }
+}
