@@ -1,13 +1,14 @@
 @echo off
 setlocal
+set "PYTHONDONTWRITEBYTECODE=1"
 cd /d "%~dp0"
 title Meridian Insights - Sprint 2
 set "PY=runtime\python.exe"
-%PY% -c "import pandas, flask, pytest" >nul 2>&1 && goto run
+%PY% -B -c "import pandas, flask, pytest" >nul 2>&1 && goto run
 set "PY=python"
-%PY% -c "import pandas, flask, pytest" >nul 2>&1 && goto run
+%PY% -B -c "import pandas, flask, pytest" >nul 2>&1 && goto run
 set "PY=py"
-%PY% -c "import pandas, flask, pytest" >nul 2>&1 && goto run
+%PY% -B -c "import pandas, flask, pytest" >nul 2>&1 && goto run
 echo.
 echo  Could not start Python with pandas + Flask + pytest.
 echo  The bundled runtime folder may be missing, or this PC blocks it.
