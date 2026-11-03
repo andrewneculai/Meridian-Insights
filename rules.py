@@ -1,6 +1,6 @@
 """LOGIC LAYER (2/2) -- portfolio rule checks.
 
-Sprint 1 rule: no single holding may exceed the position limit
+Currently one rule: no single holding may exceed the position limit
 (default 25% of portfolio value).
 """
 from __future__ import annotations
@@ -17,7 +17,8 @@ def check_position_limits(weights: pd.Series, limit: float = DEFAULT_LIMIT) -> l
     return [
         {"ticker": t, "weight": float(w), "limit": limit,
          "passed": bool(round(float(w), 10) <= limit),
-         "over_by": max(0.0, float(w) - limit)}
+         "over_by": max(0.0, float(w) - limit),
+         "headroom": max(0.0, limit - float(w))}
         for t, w in weights.items()
     ]
 

@@ -53,3 +53,18 @@ def test_portfolio_vs_benchmark():
     assert r["benchmark_hpr"] == pytest.approx(0.10)
     assert r["excess_hpr"] == pytest.approx(-0.10)
     assert r["days"] == 365
+
+
+def test_rebased_series_start_at_100():
+    s = pf.rebased_series(HOLDINGS, make_prices(), "SPY")
+    assert list(s.iloc[0]) == [100.0, 100.0]
+    assert s["SPY"].iloc[-1] == pytest.approx(110.0)
+
+
+def test_performance_table():
+    t = pf.performance_table(HOLDINGS, make_prices(), "SPY")
+    assert list(t.columns) == ["portfolio_value", "portfolio_index",
+                               "benchmark_price", "benchmark_index", "gap"]
+    assert t["portfolio_value"].iloc[0] == 2000
+    assert t["portfolio_index"].iloc[0] == 100 and t["gap"].iloc[0] == 0
+    assert t["gap"].iloc[-1] == pytest.approx(-10.0)
