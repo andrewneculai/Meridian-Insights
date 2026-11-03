@@ -66,3 +66,31 @@ def portfolio_vs_benchmark(holdings: list[dict], prices: pd.DataFrame,
         "excess_hpr": p_hpr - b_hpr,
         "total_cost": float(values.iloc[0]), "total_value": float(values.iloc[-1]),
     }
+
+
+def rebased_series(holdings: list[dict], prices: pd.DataFrame,
+                   benchmark: str) -> pd.DataFrame:
+    """Portfolio and benchmark both rebased to 100 -- the data the chart plots."""
+    values = portfolio_value_series(holdings, prices)
+    return pd.DataFrame({
+        "Portfolio": values / values.iloc[0] * 100,
+        benchmark: prices[benchmark] / prices[benchmark].iloc[0] * 100,
+    })
+
+
+def performance_table(holdings: list[dict], prices: pd.DataFrame,
+                      benchmark: str) -> pd.DataFrame:
+    """Per-date comparison used for the chart and its hover read-out.
+
+    Columns: portfolio_value ($), portfolio_index (start = 100), benchmark_price,
+    benchmark_index (start = 100), and gap (portfolio_index - benchmark_index).
+    """
+    values = portfolio_value_series(holdings, prices)
+    out = pd.DataFrame({
+        "portfolio_value": values,
+        "portfolio_index": values / values.iloc[0] * 100,
+        "benchmark_price": prices[benchmark],
+        "benchmark_index": prices[benchmark] / prices[benchmark].iloc[0] * 100,
+    })
+    out["gap"] = out["portfolio_index"] - out["benchmark_index"]
+    return out
