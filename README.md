@@ -1,41 +1,33 @@
-# Meridian Insights, Sprint 1 demo
+# Meridian Insights (CS 350)
 
-CS 350 portfolio tracker. **Sprint 1** delivers the data layer and the logic layer.
-Authors: Bamlak Girma (data layer) and Andrew Neculai (logic layer).
+Portfolio tracking and performance dashboard: pulls prices, computes returns vs. SPY,
+and flags any holding over the 25% position limit.
 
-## What it does
-- Pulls real prices for six stocks and a benchmark (SPY) from Yahoo Finance with `yfinance`.
-- Falls back to a bundled real-data snapshot when there is no internet, so the demo always works.
-- Calculates holding-period return, annualized return, weights, and the portfolio against SPY.
-- Checks a position-size rule: no holding may exceed 25% of the portfolio (NVDA fails at about 31%).
+## Architecture (three separate layers)
 
-## Three-layer design
-| Layer | Files | Job |
+| Layer | Files | Rule |
 |---|---|---|
-| Data | `data.py` | Fetch, cache, validate prices; falls back to the snapshot |
-| Logic | `portfolio.py`, `rules.py` | Pure pandas calculations and the limit rule; no internet, no files |
-| Presentation | (Sprint 2) | Flask dashboard on top of the two layers |
+| Data | `data.py`, `data/` | Only code that uses yfinance or reads/writes files. Live fetch -> CSV cache -> bundled real snapshot (offline fallback). |
+| Logic | `portfolio.py`, `rules.py`, `timeframes.py` | Pure pandas functions. No network, no files, no Flask. |
+| Presentation | `app.py`, `templates/` | Flask dashboard. Calls data, passes results to logic, renders. No financial math. |
 
-`data.py` imports no logic code, and `portfolio.py` and `rules.py` import only pandas.
+`tests/` covers the logic layer (returns, weights, rule checks) plus the data layer's
+cache/fallback behavior using a fake downloader.
 
-## Run it
-Requires Python 3.10 or newer.
+## Run
 
-```bash
-pip install -r requirements.txt
-python demo.py              # guided demo: press Enter between steps
-python demo.py --offline    # use the saved snapshot, skip Yahoo
-python demo.py --auto       # no pauses
-python -m pytest            # 22 unit tests
-```
+    pip install -r requirements.txt
+    python -m pytest          # unit tests
+    python app.py             # http://127.0.0.1:5000
+    python data.py --refresh  # re-pull the real yfinance snapshot
 
-On Windows, the portable package also has `RUN_DEMO.bat`, `RUN_DEMO_OFFLINE.bat` and `RUN_TESTS.bat`.
-They need the bundled `runtime` and `libs` folders, which are not in this repository, so they fall back
-to the Python installed on the PC.
+Sample holdings, benchmark, purchase date and limit live in `data/holdings.json`.
+`data/snapshot/` holds real yfinance prices (adjusted close) and company info as of 2026-10-09.
 
-## Files
-- `demo.py`, `present.py`: the scripted walkthrough and its console helpers
-- `data/holdings.json`: holdings, benchmark, purchase date and limit
-- `data/snapshot/`: real yfinance prices and company info (Oct 2025 to Oct 2026)
-- `tests/`: pytest tests for both layers
-- `README.txt`: the presenters' talking points
+## Scope
+MVP (sprint 1), the Flask dashboard, the Logic Layer tab and the time-frame selector are done, and so are
+all four stretch items:
+- Rebalancing suggestions: `rebalance.py`, shown on the Rebalance tab.
+- Weekly summary report: `report.py`, shown on the Weekly Report tab; `python weekly_report.py` writes HTML files to `reports/`.
+- Configurable holdings and limit: the Settings page, validated by `settings.py`.
+- Multiple saved portfolios: `data/portfolios/`, chosen with the header drop-down.

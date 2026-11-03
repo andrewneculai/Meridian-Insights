@@ -1,0 +1,15 @@
+<header>
+  <h1>Meridian Insights</h1>
+  <p>{{ subtitle }}</p>
+  <div class="portsel">Portfolio:
+    <select id="portsel" aria-label="Choose portfolio">
+      {% for p in portfolios %}<option value="{{ p.id }}" {{ 'selected' if p.id == pid }}>{{ p.name }}</option>{% endfor %}
+    </select>
+    <a href="{{ url_for('settings', p=pid) }}">Manage portfolios</a>
+  </div>
+</header>
+<script>
+  document.getElementById('portsel').addEventListener('change', function () {
+    location.href = '{{ url_for("dashboard") }}?p=' + encodeURIComponent(this.value) + (location.hash || '');
+  });
+</script>

@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meridian Insights</title>
+{% include "_style.html" %}
+</head>
+<body>
+{% set subtitle = 'Portfolio tracking and performance dashboard · ' ~ summary.start.strftime('%b %d, %Y') ~ ' → ' ~ summary.end.strftime('%b %d, %Y') ~ ' (' ~ summary.days ~ ' days)' ~ ((' · ' ~ (ranges[selected] if selected in ranges else 'Custom')) if selected != 'MAX' else '') %}
+{% include "_header.html" %}
+<main>
+  <div class="tabs" role="tablist">
+    <button class="tab active" role="tab" data-tab="dash">Dashboard</button>
+    <button class="tab" role="tab" data-tab="logic">Logic Layer</button>
+    <button class="tab" role="tab" data-tab="rebalance">Rebalance</button>
+    <button class="tab" role="tab" data-tab="report">Weekly Report</button>
+    <a class="tab" href="{{ url_for('settings', p=pid) }}">Settings</a>
+  </div>
+  <div class="rangebar" id="rangebar">
+    {% for k, label in ranges.items() %}<a class="pill {{ 'on' if selected == k }}" data-base="?range={{ k }}&p={{ pid }}" href="?range={{ k }}&p={{ pid }}">{{ label }}</a>{% endfor %}
+    <form id="customform" method="get" class="{{ 'on' if selected == 'CUSTOM' }}">
+      <input type="hidden" name="p" value="{{ pid }}">
+      <label for="cs">Custom</label>
+      <input type="date" id="cs" name="start" value="{{ custom_start }}" min="{{ data_min }}" max="{{ data_max }}" required>
+      <span>to</span>
+      <input type="date" id="ce" name="end" value="{{ custom_end }}" min="{{ data_min }}" max="{{ data_max }}" required>
+      <button type="submit">Apply</button>
+    </form>
+  </div>
+  {% if notice %}<div class="ok-note">{{ notice }}</div>{% endif %}
+  {% if error %}<div class="warn"><strong>{{ error }}</strong> Showing {{ ranges[selected] }} instead.</div>{% endif %}
+  <div class="panel" id="panel-dash">
+  {% if violations %}
+  <div class="alert"><strong>Position limit breached.</strong>
+    {% for v in violations %}{{ v.ticker }} is {{ v.weight|pct }} of the portfolio ({{ v.over_by|pct }} over the {{ limit|pct }} limit){% if not loop.last %}; {% endif %}{% endfor %}.
+  </div>
+  {% else %}
+  <div class="alert ok"><strong>All positions within the {{ limit|pct }} limit.</strong></div>
+  {% endif %}
+
+  <div class="cards">
+    <div class="card"><div class="label">Portfolio value</div>
+      <div class="value">{{ summary.total_value|usd }}</div>
+      <div class="sub">Start of period {{ summary.total_cost|usd }}</div></div>
+    <div class="card"><div class="label">Portfolio return</div>
+      <div class="value {{ 'pos' if summary.portfolio_hpr >= 0 else 'neg' }}">{{ summary.portfolio_hpr|pct(True) }}</div>
+      <div class="sub">{{ summary.portfolio_annualized|pct(True) }} annualized</div></div>
+    <div class="card"><div class="label">{{ benchmark }} return</div>
+      <div class="value {{ 'pos' if summary.benchmark_hpr >= 0 else 'neg' }}">{{ summary.benchmark_hpr|pct(True) }}</div>
+      <div class="sub">{{ summary.benchmark_annualized|pct(True) }} annualized</div></div>
+    <div class="card"><div class="label">vs. {{ benchmark }}</div>
+      <div class="value {{ 'pos' if summary.excess_hpr >= 0 else 'neg' }}">{{ summary.excess_hpr|pct(True) }}</div>
+      <div class="sub">{{ 'Outperforming' if summary.excess_hpr >= 0 else 'Lagging' }} the benchmark</div></div>
+  </div>
+
+  <h2>Performance vs. {{ benchmark }}</h2>
+  <div class="legend"><span><i style="background:var(--accent)"></i>Portfolio</span>
+    <span><i style="background:var(--navy)"></i>{{ benchmark }}</span>
+    <span style="color:var(--muted)">Hover the chart for values</span></div>
+  <div id="chart-wrap"><svg id="chart" viewBox="0 0 900 360" role="img"
+    aria-label="Portfolio vs {{ benchmark }}, rebased to 100"></svg><div id="tip"></div></div>
+
+  <h2>Holdings</h2>
+  <table>
+    <thead><tr><th>Ticker</th><th>Name</th><th>Sector</th><th>Shares</th><th>Value</th>
+      <th>Weight</th><th>HPR</th><th>Annualized</th><th>Limit</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr class="{{ 'breach' if not r.check.passed }}">
+        <td><strong>{{ r.ticker }}</strong></td><td>{{ r.name }}</td><td>{{ r.sector }}</td>
+        <td>{{ '%d'|format(r.shares) }}</td><td>{{ r.value|usd }}</td>
+        <td>{{ r.weight|pct }}</td>
+        <td class="{{ 'pos' if r.hpr >= 0 else 'neg' }}">{{ r.hpr|pct(True) }}</td>
+        <td class="{{ 'pos' if r.annualized >= 0 else 'neg' }}">{{ r.annualized|pct(True) }}</td>
+        <td><span class="badge {{ 'pass' if r.check.passed else 'fail' }}">{{ 'PASS' if r.check.passed else 'FAIL' }}</span></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div><!-- /panel-dash -->
+
+  <div class="panel" id="panel-logic" hidden>
+    <div class="layer"><strong>Logic layer.</strong> Every number below is computed by
+      <code>portfolio.py</code> and <code>rules.py</code>. These modules never fetch data or draw anything;
+      <code>app.py</code> only formats what they return.</div>
+
+    <div class="sec">
+      <h2>1 · Returns</h2>
+      <div class="fn"><code>portfolio.holding_period_return</code> · <code>portfolio.annualized_return</code> · <code>portfolio.holding_metrics</code></div>
+      <div class="formula">HPR = end price / start price − 1<br>Annualized = (1 + HPR) ^ (365 / {{ summary.days }} days) − 1</div>
+      <table><thead><tr><th>Ticker</th><th>Start price</th><th>End price</th><th>Shares</th><th>Start value</th><th>Value</th><th>HPR</th><th>Annualized</th></tr></thead><tbody>
+      {% for r in rows %}<tr><td><strong>{{ r.ticker }}</strong></td>
+        <td>${{ '%.2f'|format(r.start_price) }}</td><td>${{ '%.2f'|format(r.end_price) }}</td>
+        <td>{{ '%d'|format(r.shares) }}</td><td>{{ r.cost|usd }}</td><td>{{ r.value|usd }}</td>
+        <td class="{{ 'pos' if r.hpr >= 0 else 'neg' }}">{{ r.hpr|pct(True) }}</td>
+        <td class="{{ 'pos' if r.annualized >= 0 else 'neg' }}">{{ r.annualized|pct(True) }}</td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+
+    <div class="sec">
+      <h2>2 · Weights</h2>
+      <div class="fn"><code>portfolio.holding_metrics</code> (weight column)</div>
+      <div class="formula">Weight = position value / total portfolio value</div>
+      <table><thead><tr><th>Ticker</th><th>Position value</th><th>Weight</th></tr></thead><tbody>
+      {% for r in rows %}<tr><td><strong>{{ r.ticker }}</strong></td><td>{{ r.value|usd }}</td>
+        <td><span class="bar {{ 'over' if not r.check.passed }}" style="width:{{ (r.weight*260)|round|int }}px"></span>{{ r.weight|pct }}</td></tr>{% endfor %}
+      </tbody><tfoot><tr><td>Total</td><td>{{ summary.total_value|usd }}</td><td>{{ (rows|sum(attribute='weight'))|pct }}</td></tr></tfoot></table>
+    </div>
+
+    <div class="sec">
+      <h2>3 · Benchmark comparison</h2>
+      <div class="fn"><code>portfolio.portfolio_vs_benchmark</code> · <code>portfolio.performance_table</code></div>
+      <div class="formula">Portfolio = buy-and-hold value of all positions<br>Excess return = portfolio HPR − {{ benchmark }} HPR</div>
+      <table><thead><tr><th></th><th>Start</th><th>End</th><th>HPR</th><th>Annualized</th></tr></thead><tbody>
+        <tr><td><strong>Portfolio</strong></td><td>{{ summary.total_cost|usd }}</td><td>{{ summary.total_value|usd }}</td>
+          <td class="{{ 'pos' if summary.portfolio_hpr >= 0 else 'neg' }}">{{ summary.portfolio_hpr|pct(True) }}</td>
+          <td class="{{ 'pos' if summary.portfolio_annualized >= 0 else 'neg' }}">{{ summary.portfolio_annualized|pct(True) }}</td></tr>
+        <tr><td><strong>{{ benchmark }}</strong></td><td>${{ '%.2f'|format(chart_points[0].bp) }}</td><td>${{ '%.2f'|format(chart_points[-1].bp) }}</td>
+          <td class="{{ 'pos' if summary.benchmark_hpr >= 0 else 'neg' }}">{{ summary.benchmark_hpr|pct(True) }}</td>
+          <td class="{{ 'pos' if summary.benchmark_annualized >= 0 else 'neg' }}">{{ summary.benchmark_annualized|pct(True) }}</td></tr>
+      </tbody><tfoot><tr><td>Excess vs. {{ benchmark }}</td><td></td><td></td>
+        <td class="{{ 'pos' if summary.excess_hpr >= 0 else 'neg' }}">{{ summary.excess_hpr|pct(True) }}</td>
+        <td class="{{ 'pos' if summary.portfolio_annualized >= summary.benchmark_annualized else 'neg' }}">{{ (summary.portfolio_annualized - summary.benchmark_annualized)|pct(True) }}</td></tr></tfoot></table>
+      <p class="fn">Window: {{ summary.start.strftime('%b %d, %Y') }} → {{ summary.end.strftime('%b %d, %Y') }} ({{ summary.days }} days).</p>
+    </div>
+
+    <div class="sec">
+      <h2>4 · Limit checks</h2>
+      <div class="fn"><code>rules.check_position_limits</code> · <code>rules.violations</code></div>
+      <div class="formula">PASS if weight ≤ {{ limit|pct }} · FAIL otherwise (a weight exactly at the limit passes)</div>
+      <table><thead><tr><th>Ticker</th><th>Weight</th><th>Limit</th><th>Headroom</th><th>Over by</th><th>Result</th></tr></thead><tbody>
+      {% for r in rows %}<tr class="{{ 'breach' if not r.check.passed }}"><td><strong>{{ r.ticker }}</strong></td>
+        <td>{{ r.check.weight|pct }}</td><td>{{ r.check.limit|pct }}</td>
+        <td>{{ r.check.headroom|pct }}</td><td>{{ r.check.over_by|pct if r.check.over_by else '—' }}</td>
+        <td><span class="badge {{ 'pass' if r.check.passed else 'fail' }}">{{ 'PASS' if r.check.passed else 'FAIL' }}</span></td></tr>{% endfor %}
+      </tbody></table>
+      <p class="fn">{{ violations|length }} violation{{ '' if violations|length == 1 else 's' }}
+        {% if violations %}({% for v in violations %}{{ v.ticker }}{% if not loop.last %}, {% endif %}{% endfor %}){% endif %}.</p>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-rebalance" hidden>
+    <div class="layer"><strong>Logic layer.</strong> <code>rebalance.suggest_rebalance</code> proposes whole-share trades that bring every holding
+      to the {{ limit|pct }} limit or below. It sells the over-limit holdings, then spends the proceeds on the smallest holdings.</div>
+    <div class="sec">
+      <h2>Rebalancing suggestion</h2>
+      <div class="fn">Latest prices from {{ summary.end.strftime('%b %d, %Y') }} · total value {{ summary.total_value|usd }}</div>
+      {% if not reb.trades %}
+        <div class="alert ok"><strong>{{ reb.note }}</strong></div>
+      {% else %}
+        <div class="formula">Sell: ceil((value − limit × total) ÷ price) shares of each holding over the limit<br>Buy: one share at a time for the holding with the smallest weight, never above the limit</div>
+        <table class="nohide"><thead><tr><th>Ticker</th><th>Price</th><th>Shares now</th><th>Weight now</th><th>Trade</th><th>Shares after</th><th>Weight after</th><th>Limit</th></tr></thead><tbody>
+        {% for r in reb_rows %}<tr class="{{ 'breach' if not r.ok_before }}"><td><strong>{{ r.ticker }}</strong></td><td>${{ '%.2f'|format(r.price) }}</td>
+          <td>{{ '%d'|format(r.shares) }}</td><td>{{ r.before|pct }}</td>
+          <td>{% if r.action %}<span class="{{ 'sell' if r.action == 'SELL' else 'buy' }}">{{ r.action }} {{ r.qty }}</span>{% else %}—{% endif %}</td>
+          <td>{{ '%d'|format(r.new_shares) }}</td><td>{{ r.after|pct }}</td>
+          <td><span class="badge {{ 'pass' if r.ok_after else 'fail' }}">{{ 'PASS' if r.ok_after else 'FAIL' }}</span></td></tr>{% endfor %}
+        </tbody><tfoot><tr><td>Cash</td><td></td><td></td><td></td><td></td><td></td><td>{{ reb.cash_weight|pct }}</td><td>{{ reb.cash|usd }}</td></tr></tfoot></table>
+        <p class="fn">{{ reb.note }}</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="panel" id="panel-report" hidden>
+    <div class="layer"><strong>Logic layer.</strong> <code>report.week_list</code> splits the chosen time frame into whole weeks and
+      <code>report.weekly_summary</code> computes each one. Pick a time frame above, then click a week to open its report.</div>
+    <div class="sec">
+      <h2>Weeks in this time frame <span class="fn" style="margin:0">({{ weeks|length }} {{ 'week' if weeks|length == 1 else 'weeks' }}, newest first)</span></h2>
+      <form method="get" action="{{ url_for('dashboard') }}#report" class="weekpick">
+        <input type="hidden" name="p" value="{{ pid }}"><input type="hidden" name="range" value="{{ selected }}">
+        {% if custom_start %}<input type="hidden" name="start" value="{{ custom_start }}"><input type="hidden" name="end" value="{{ custom_end }}">{% endif %}
+        <label for="weeksel"><strong>Choose a week:</strong></label>
+        <select id="weeksel" name="week" onchange="this.form.submit()">
+          {% for w in weeks %}<option value="{{ w.key }}" {{ 'selected' if w.key == week_key }}>{{ w.start.strftime('%b %d') }} → {{ w.end.strftime('%b %d, %Y') }}{{ '  (latest)' if loop.first }}  ·  {{ w.portfolio_hpr|pct(True) }}</option>{% endfor %}
+        </select>
+        <noscript><button class="btn" type="submit">Show</button></noscript>
+      </form>
+      <div class="weeklist">
+      <table class="nohide"><thead><tr><th>Week</th><th>Portfolio</th><th>{{ benchmark }}</th><th>vs. {{ benchmark }}</th><th>Value</th><th>Limit</th></tr></thead><tbody>
+      {% for w in weeks %}{% set href = url_for('dashboard', range=selected, p=pid, week=w.key, start=custom_start or None, end=custom_end or None) ~ '#report' %}
+      <tr class="{{ 'sel' if w.key == week_key }}">
+        <td><a href="{{ href }}">{{ w.start.strftime('%b %d') }} → {{ w.end.strftime('%b %d, %Y') }}</a></td>
+        <td class="{{ 'pos' if w.portfolio_hpr >= 0 else 'neg' }}">{{ w.portfolio_hpr|pct(True) }}</td>
+        <td class="{{ 'pos' if w.benchmark_hpr >= 0 else 'neg' }}">{{ w.benchmark_hpr|pct(True) }}</td>
+        <td class="{{ 'pos' if w.excess_hpr >= 0 else 'neg' }}">{{ w.excess_hpr|pct(True) }}</td>
+        <td>{{ w.total_value|usd }}</td>
+        <td>{% if w.violations %}<span class="badge fail">{{ w.violations }} over</span>{% else %}<span class="badge pass">PASS</span>{% endif %}</td></tr>{% endfor %}
+      </tbody></table></div>
+    </div>
+    <div class="actions">
+      <a class="btn" href="{{ url_for('report_page', p=pid, week=week_key, download=1) }}">Download this week as HTML</a>
+      <a class="btn" href="{{ url_for('report_page', p=pid, week=week_key) }}" target="_blank" rel="noopener">Open full page</a>
+      <form method="post" action="{{ url_for('save_report_route') }}" style="display:inline"><input type="hidden" name="p" value="{{ pid }}"><input type="hidden" name="week" value="{{ week_key }}"><button class="btn primary" type="submit">Save this week to the reports folder</button></form>
+      <span class="fn" style="margin:0">Automatic: run <code>weekly_report.py</code> (or schedule it) to write a report every week.</span>
+    </div>
+    {% include "_report.html" %}
+  </div>
+  <footer>Prices: Yahoo Finance via yfinance (split/dividend-adjusted close), last price {{ last_price_date.strftime('%b %d, %Y') }}.
+  Buy-and-hold from the purchase date; for coursework, not investment advice.</footer>
+</main>
+<script>
+const DATA = {{ chart_points|tojson }};
+const BENCH = {{ benchmark|tojson }};
+(function () {
+  // ---- tabs
+  const tabs = document.querySelectorAll('button.tab');
+  let current = 'dash';
+  function show(name) {
+    current = name;
+    tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+    document.querySelectorAll('.panel').forEach(p => { p.hidden = p.id !== 'panel-' + name; });
+    try { history.replaceState(null, '', '#' + name); } catch (e) {}
+    syncLinks();
+    if (name === 'dash') draw();
+  }
+  function syncLinks() {
+    const frag = '#' + current;
+    document.querySelectorAll('#rangebar a.pill').forEach(a => a.setAttribute('href', a.dataset.base + frag));
+    document.getElementById('customform').setAttribute('action', frag);
+  }
+  tabs.forEach(b => b.addEventListener('click', () => show(b.dataset.tab)));
+
+  // ---- chart
+  const svg = document.getElementById('chart'), tip = document.getElementById('tip'), wrap = document.getElementById('chart-wrap');
+  const W = 900, H = 360, M = {l: 52, r: 16, t: 14, b: 30};
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (n, a, p) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); (p || svg).appendChild(e); return e; };
+  const t = DATA.map(d => new Date(d.date + 'T00:00:00').getTime());
+  const all = DATA.flatMap(d => [d.pi, d.bi]);
+  const rawMin = Math.min(...all, 100), rawMax = Math.max(...all, 100), span = rawMax - rawMin || 1;
+  const step = [0.5, 1, 2, 5, 10, 20].find(s => span / s <= 6) || 20;
+  let lo = Math.floor((rawMin - span * 0.04) / step) * step, hi = Math.ceil((rawMax + span * 0.04) / step) * step;
+  const x = i => M.l + (t[i] - t[0]) / (t[t.length - 1] - t[0]) * (W - M.l - M.r);
+  const y = v => M.t + (hi - v) / (hi - lo) * (H - M.t - M.b);
+  const money = v => '$' + v.toLocaleString('en-US', {maximumFractionDigits: 2});
+  const pct = v => (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+  let cross, dotP, dotB;
+
+  function draw() {
+    svg.innerHTML = '';
+    const dec = step < 1 ? 1 : 0;
+    for (let v = lo; v <= hi + 1e-9; v += step) {
+      el('line', {x1: M.l, x2: W - M.r, y1: y(v), y2: y(v), stroke: Math.abs(v - 100) < 1e-9 ? '#9aa3b2' : '#e3e0d8', 'stroke-dasharray': Math.abs(v - 100) < 1e-9 ? '4 3' : ''});
+      el('text', {x: M.l - 8, y: y(v) + 4, 'text-anchor': 'end', 'font-size': 11, fill: '#6b7280'}).textContent = v.toFixed(dec);
+    }
+    // x ticks: months for long windows, evenly spaced dates for short ones
+    const days = (t[t.length - 1] - t[0]) / 864e5;
+    const label = (i, opts) => el('text', {x: x(i), y: H - 8, 'text-anchor': i === 0 ? 'start' : (i === DATA.length - 1 ? 'end' : 'middle'),
+      'font-size': 11, fill: '#6b7280'}).textContent = new Date(t[i]).toLocaleDateString('en-US', opts);
+    if (days > 150) {
+      let last = '';
+      DATA.forEach((d, i) => { const m = d.date.slice(0, 7); if (m !== last && (i === 0 || d.date.slice(8) <= '10')) { last = m; label(i, {month: 'short', year: '2-digit'}); } });
+    } else {
+      const n = Math.min(6, DATA.length - 1);
+      for (let k = 0; k <= n; k++) label(Math.round(k * (DATA.length - 1) / n), {month: 'short', day: 'numeric'});
+    }
+    const line = (k, c, w) => el('polyline', {points: DATA.map((d, i) => x(i).toFixed(1) + ',' + y(d[k]).toFixed(1)).join(' '),
+      fill: 'none', stroke: c, 'stroke-width': w, 'stroke-linejoin': 'round'});
+    line('bi', '#1b2a41', 1.8); line('pi', '#c8553d', 2.2);
+    cross = el('line', {y1: M.t, y2: H - M.b, stroke: '#6b7280', 'stroke-dasharray': '3 3', visibility: 'hidden'});
+    dotB = el('circle', {r: 5, fill: '#1b2a41', stroke: '#fff', 'stroke-width': 2, visibility: 'hidden'});
+    dotP = el('circle', {r: 5, fill: '#c8553d', stroke: '#fff', 'stroke-width': 2, visibility: 'hidden'});
+  }
+
+  function move(ev) {
+    const r = svg.getBoundingClientRect(), px = (ev.clientX - r.left) / r.width * W;
+    let best = 0, bd = Infinity;
+    for (let i = 0; i < DATA.length; i++) { const dd = Math.abs(x(i) - px); if (dd < bd) { bd = dd; best = i; } }
+    const d = DATA[best], gap = d.pi - d.bi;
+    cross.setAttribute('x1', x(best)); cross.setAttribute('x2', x(best));
+    dotP.setAttribute('cx', x(best)); dotP.setAttribute('cy', y(d.pi));
+    dotB.setAttribute('cx', x(best)); dotB.setAttribute('cy', y(d.bi));
+    [cross, dotP, dotB].forEach(e => e.setAttribute('visibility', 'visible'));
+    tip.innerHTML = '<div class="d">' + new Date(t[best]).toLocaleDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'}) + '</div>' +
+      '<div class="row"><span><i style="background:#c8553d"></i>Portfolio</span><b>' + money(d.pv) + '</b></div>' +
+      '<div class="row"><span style="opacity:.75">Index ' + d.pi.toFixed(2) + '</span><span>' + pct(d.pi - 100) + '</span></div>' +
+      '<div class="row"><span><i style="background:#8fa3c4"></i>' + BENCH + '</span><b>' + money(d.bp) + '</b></div>' +
+      '<div class="row"><span style="opacity:.75">Index ' + d.bi.toFixed(2) + '</span><span>' + pct(d.bi - 100) + '</span></div>' +
+      '<div class="row" style="border-top:1px solid #ffffff33;margin-top:3px;padding-top:3px"><span>Portfolio vs ' + BENCH + '</span><b>' + (gap >= 0 ? '+' : '') + gap.toFixed(2) + ' pts</b></div>';
+    const wr = wrap.getBoundingClientRect(), tw = tip.offsetWidth;
+    let left = ev.clientX - wr.left + 16; if (left + tw > wr.width - 4) left = ev.clientX - wr.left - tw - 16;
+    tip.style.left = Math.max(4, left) + 'px'; tip.style.top = Math.max(4, ev.clientY - wr.top - 40) + 'px';
+    tip.style.opacity = 1;
+  }
+  function leave() { [cross, dotP, dotB].forEach(e => e.setAttribute('visibility', 'hidden')); tip.style.opacity = 0; }
+  svg.addEventListener('pointermove', move); svg.addEventListener('pointerdown', move); svg.addEventListener('pointerleave', leave);
+
+  draw();
+  const h = location.hash.slice(1); if (['logic', 'rebalance', 'report'].includes(h)) show(h); else syncLinks();
+})();
+</script>
+</body>
+</html>

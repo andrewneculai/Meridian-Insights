@@ -1,0 +1,33 @@
+<div class="sec">
+  <h2>Weekly summary · {{ rep.name }}</h2>
+  <div class="fn">{{ rep.data.start.strftime('%b %d, %Y') }} → {{ rep.data.end.strftime('%b %d, %Y') }} ({{ rep.data.days }} days) ·
+    <code>report.weekly_summary</code></div>
+  <p class="rep-sentence">
+    In this week the portfolio {{ 'gained' if rep.data.portfolio_hpr >= 0 else 'lost' }}
+    <b>{{ rep.data.portfolio_hpr|pct }}</b> ({{ rep.data.total_change|usd }}), while {{ rep.data.benchmark }}
+    {{ 'gained' if rep.data.benchmark_hpr >= 0 else 'lost' }} <b>{{ rep.data.benchmark_hpr|pct }}</b>:
+    {{ 'ahead of' if rep.data.excess_hpr >= 0 else 'behind' }} the benchmark by
+    <b>{{ '%.2f'|format((rep.data.excess_hpr|abs) * 100) }} percentage points</b>.
+    The best holding was <b>{{ rep.data.best.ticker }}</b> ({{ rep.data.best.hpr|pct(True) }}) and the weakest
+    <b>{{ rep.data.worst.ticker }}</b> ({{ rep.data.worst.hpr|pct(True) }}).</p>
+  <div class="kpis">
+    <div class="card"><div class="label">Portfolio, week</div><div class="value {{ 'pos' if rep.data.portfolio_hpr >= 0 else 'neg' }}">{{ rep.data.portfolio_hpr|pct(True) }}</div><div class="sub">{{ rep.data.total_value|usd }} now</div></div>
+    <div class="card"><div class="label">{{ rep.data.benchmark }}, week</div><div class="value {{ 'pos' if rep.data.benchmark_hpr >= 0 else 'neg' }}">{{ rep.data.benchmark_hpr|pct(True) }}</div><div class="sub">same dates</div></div>
+    <div class="card"><div class="label">vs. {{ rep.data.benchmark }}</div><div class="value {{ 'pos' if rep.data.excess_hpr >= 0 else 'neg' }}">{{ rep.data.excess_hpr|pct(True) }}</div><div class="sub">{{ 'Ahead' if rep.data.excess_hpr >= 0 else 'Behind' }}</div></div>
+    <div class="card"><div class="label">Value change</div><div class="value {{ 'pos' if rep.data.total_change >= 0 else 'neg' }}">{{ rep.data.total_change|usd }}</div><div class="sub">over the week</div></div>
+  </div>
+  <table class="nohide"><thead><tr><th>Ticker</th><th>Start price</th><th>End price</th><th>Value</th><th>Weight</th><th>Change</th><th>Week return</th></tr></thead><tbody>
+  {% for r in rep.data.rows %}<tr class="{{ 'breach' if r.weight > rep.data.limit + 1e-10 }}"><td><strong>{{ r.ticker }}</strong></td>
+    <td>${{ '%.2f'|format(r.start_price) }}</td><td>${{ '%.2f'|format(r.end_price) }}</td><td>{{ r.value|usd }}</td><td>{{ r.weight|pct }}</td>
+    <td class="{{ 'pos' if r.change >= 0 else 'neg' }}">{{ r.change|usd }}</td>
+    <td class="{{ 'pos' if r.hpr >= 0 else 'neg' }}">{{ r.hpr|pct(True) }}</td></tr>{% endfor %}
+  </tbody></table>
+  {% if rep.data.violations %}
+  <div class="alert" style="margin-top:14px"><strong>Limit check:</strong>
+    {% for v in rep.data.violations %}{{ v.ticker }} is {{ v.weight|pct }} of the portfolio ({{ v.over_by|pct }} over the {{ rep.data.limit|pct }} limit){% if not loop.last %}; {% endif %}{% endfor %}.
+    See the Rebalance tab for a suggestion.</div>
+  {% else %}
+  <div class="alert ok" style="margin-top:14px"><strong>Limit check:</strong> all positions are within the {{ rep.data.limit|pct }} limit.</div>
+  {% endif %}
+  <p class="fn">Generated {{ rep.generated }}. Prices: Yahoo Finance via yfinance (adjusted close). For coursework, not investment advice.</p>
+</div>
