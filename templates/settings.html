@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meridian Insights · Portfolios</title>
+{% include "_style.html" %}
+</head><body>
+{% set subtitle = 'Portfolios and settings' %}
+{% include "_header.html" %}
+<main>
+  <div class="tabs"><a class="tab" href="{{ url_for('dashboard', p=pid) }}">← Back to the dashboard</a>
+    <span class="tab active">Settings</span></div>
+  {% if errors %}<div class="err-note"><strong>Not saved.</strong><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+  {% if notice %}<div class="ok-note">{{ notice }}</div>{% endif %}
+
+  <div class="sec">
+    <h2>Saved portfolios</h2>
+    <div class="fn">Each portfolio has its own holdings, benchmark, purchase date and limit. <code>data.list_portfolios</code> · <code>data.save_portfolio</code></div>
+    <ul class="plist">
+    {% for p in portfolios %}
+      <li><span class="{{ 'cur' if p.id == pid }}">{{ p.name }}{{ ' (open)' if p.id == pid }}</span>
+        <span class="actions" style="margin:0">
+          <a class="btn" href="{{ url_for('settings', p=p.id) }}">Edit</a>
+          <a class="btn" href="{{ url_for('dashboard', p=p.id) }}">View</a>
+          {% if p.id != 'default' %}<form method="post" action="{{ url_for('delete_portfolio') }}" style="display:inline"><input type="hidden" name="p" value="{{ p.id }}"><button class="btn danger" type="submit">Delete</button></form>{% endif %}
+        </span></li>
+    {% endfor %}
+    </ul>
+    <form method="post" action="{{ url_for('new_portfolio') }}" class="actions">
+      <input type="hidden" name="p" value="{{ pid }}">
+      <input type="text" name="name" placeholder="New portfolio name" style="max-width:260px" required>
+      <button class="btn" type="submit">Create as a copy of “{{ form.name }}”</button>
+    </form>
+  </div>
+
+  <form method="post" action="{{ url_for('save_settings') }}">
+  <div class="sec">
+    <h2>Edit “{{ form.name }}”</h2>
+    <div class="fn">Checked by <code>settings.validate_config</code> before it is saved.</div>
+    <input type="hidden" name="p" value="{{ pid }}">
+    <div class="formgrid">
+      <div><label for="name">Portfolio name</label><input type="text" id="name" name="name" value="{{ form.name }}" required></div>
+      <div><label for="benchmark">Benchmark ticker</label><input type="text" id="benchmark" name="benchmark" value="{{ form.benchmark }}" required></div>
+      <div><label for="purchase_date">Purchase date</label><input type="date" id="purchase_date" name="purchase_date" value="{{ form.purchase_date }}" required></div>
+      <div><label for="limit">Position limit (%)</label><input type="number" id="limit" name="limit" step="0.1" min="1" max="100" value="{{ form.limit }}" required></div>
+    </div>
+    <table class="nohide"><thead><tr><th>Ticker</th><th>Shares</th></tr></thead><tbody>
+    {% for row in form.rows %}<tr><td><input type="text" name="ticker" value="{{ row.ticker }}" placeholder="e.g. AAPL"></td>
+      <td><input type="number" name="shares" value="{{ row.shares }}" step="any" min="0"></td></tr>{% endfor %}
+    </tbody></table>
+    <p class="fn">To remove a holding, clear its ticker and shares. The last empty rows are for adding new holdings.
+      A new ticker needs price data: online, Yahoo Finance supplies it; offline, only the saved snapshot tickers ({{ snapshot_tickers }}) can be used.</p>
+    <div class="actions"><button class="btn primary" type="submit">Save and open the dashboard</button></div>
+  </div>
+  </form>
+</main>
+</body></html>
