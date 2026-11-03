@@ -3,3 +3,5 @@ libs/
 __pycache__/
 .pytest_cache/
 data/cache/
+reports/
+data/portfolios/
