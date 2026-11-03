@@ -29,3 +29,8 @@ def test_custom_limit():
 def test_invalid_limit():
     with pytest.raises(ValueError):
         rules.check_position_limits(pd.Series({"A": 0.1}), limit=0)
+
+
+def test_headroom():
+    res = rules.check_position_limits(pd.Series({"A": 0.10, "B": 0.30}))
+    assert res[0]["headroom"] == pytest.approx(0.15) and res[1]["headroom"] == 0
