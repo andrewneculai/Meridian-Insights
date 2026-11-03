@@ -1,7 +1,9 @@
 """DATA LAYER -- the only module that talks to yfinance or touches the disk.
 
 Responsibilities
-  * load the fixed holding list (data/holdings.json)
+  * load and save portfolios: the default (data/holdings.json) and any others
+    the user creates (data/portfolios/<id>.json)
+  * save generated weekly reports (reports/)
   * fetch prices from yfinance, cache them to CSV, and fall back to the
     bundled real-data snapshot (data/snapshot/) when offline
   * return plain pandas objects / dicts; no financial calculations here
@@ -11,6 +13,7 @@ Run `python data.py --refresh` to re-pull the snapshot from yfinance.
 from __future__ import annotations
 
 import json
+import re
 import sys
 from datetime import date, timedelta
 from pathlib import Path
@@ -22,12 +25,72 @@ HOLDINGS_FILE = BASE / "data" / "holdings.json"
 CACHE_FILE = BASE / "data" / "cache" / "prices.csv"
 SNAPSHOT_PRICES = BASE / "data" / "snapshot" / "prices.csv"
 SNAPSHOT_INFO = BASE / "data" / "snapshot" / "info.json"
+PORTFOLIO_DIR = BASE / "data" / "portfolios"
+REPORT_DIR = BASE / "reports"
+DEFAULT_ID = "default"
+_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 
 
-def load_config(path: Path = HOLDINGS_FILE) -> dict:
+def load_config(path: Path | None = None) -> dict:
     """Holdings, benchmark ticker, purchase date and limit threshold."""
-    with open(path, encoding="utf-8") as f:
+    with open(path or HOLDINGS_FILE, encoding="utf-8") as f:
         return json.load(f)
+
+
+# ---- saved portfolios ------------------------------------------------------
+def _portfolio_path(pid: str) -> Path:
+    if pid == DEFAULT_ID:
+        return HOLDINGS_FILE
+    if not _ID_RE.match(pid or ""):
+        raise ValueError(f"Invalid portfolio id: {pid!r}")
+    return PORTFOLIO_DIR / f"{pid}.json"
+
+
+def list_portfolios() -> list[dict]:
+    """[{"id", "name"}], the default portfolio first, then the others by name."""
+    out = [{"id": DEFAULT_ID, "name": load_config().get("name", "Default portfolio")}]
+    if PORTFOLIO_DIR.exists():
+        others = []
+        for f in PORTFOLIO_DIR.glob("*.json"):
+            try:
+                others.append({"id": f.stem, "name": load_config(f).get("name", f.stem)})
+            except (OSError, ValueError):
+                continue                      # skip an unreadable file
+        out += sorted(others, key=lambda p: p["name"].lower())
+    return out
+
+
+def load_portfolio(pid: str = DEFAULT_ID) -> dict:
+    """One saved portfolio. Raises KeyError if it does not exist."""
+    path = _portfolio_path(pid)
+    if not path.exists():
+        raise KeyError(pid)
+    return load_config(path)
+
+
+def save_portfolio(pid: str, cfg: dict) -> None:
+    """Write a portfolio to disk. Raises OSError if the folder is read-only."""
+    path = _portfolio_path(pid)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+    tmp.replace(path)                         # never leave a half-written file
+
+
+def delete_portfolio(pid: str) -> None:
+    if pid == DEFAULT_ID:
+        raise ValueError("The default portfolio cannot be deleted.")
+    _portfolio_path(pid).unlink(missing_ok=True)
+
+
+def save_report(filename: str, html: str) -> Path:
+    """Write a generated report under reports/ and return its path."""
+    if not re.match(r"^[A-Za-z0-9_.-]+$", filename):
+        raise ValueError("Invalid report file name.")
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    path = REPORT_DIR / filename
+    path.write_text(html, encoding="utf-8")
+    return path
 
 
 def _download(tickers: list[str], start: str, end: str) -> pd.DataFrame:

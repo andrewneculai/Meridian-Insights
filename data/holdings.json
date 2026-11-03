@@ -1,13 +1,32 @@
 {
+  "name": "Diversified blend",
   "benchmark": "SPY",
   "purchase_date": "2025-10-09",
   "position_limit": 0.25,
   "holdings": [
-    {"ticker": "AAPL", "shares": 60},
-    {"ticker": "MSFT", "shares": 30},
-    {"ticker": "NVDA", "shares": 150},
-    {"ticker": "JPM",  "shares": 40},
-    {"ticker": "XOM",  "shares": 80},
-    {"ticker": "JNJ",  "shares": 50}
+    {
+      "ticker": "AAPL",
+      "shares": 60
+    },
+    {
+      "ticker": "MSFT",
+      "shares": 30
+    },
+    {
+      "ticker": "NVDA",
+      "shares": 150
+    },
+    {
+      "ticker": "JPM",
+      "shares": 40
+    },
+    {
+      "ticker": "XOM",
+      "shares": 80
+    },
+    {
+      "ticker": "JNJ",
+      "shares": 50
+    }
   ]
 }
