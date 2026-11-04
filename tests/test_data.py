@@ -1,4 +1,5 @@
 """Data-layer tests use a fake downloader -- no network needed."""
+from datetime import date
 import pandas as pd
 import pytest
 
@@ -90,3 +91,10 @@ def test_validate_prices_catches_problems():
     res = dict(data.validate_prices(bad, ["AAA", "SPY"]))
     assert not res["no missing prices"] and not res["all prices are positive"]
     assert not dict(data.validate_prices(bad, ["AAA", "ZZZ"]))["every requested ticker has a column"]
+
+def test_cache_last_updated_none_without_cache(tmp_path):
+    assert data.cache_last_updated(tmp_path / "missing.csv") is None
+def test_cache_last_updated_returns_write_date(tmp_path):
+    cache = tmp_path / "prices.csv"
+    cache.write_text("Date,AAPL\n")
+    assert data.cache_last_updated(cache) == date.today()

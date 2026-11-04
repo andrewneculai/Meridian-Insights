@@ -158,6 +158,11 @@ def get_prices(*args, **kwargs) -> pd.DataFrame:
     return fetch_prices(*args, **kwargs)[0]
 
 
+def cache_last_updated(cache_file: Path = CACHE_FILE) -> date | None:
+    """Date the price cache was last written, or None if there is no cache."""
+    if not cache_file.exists():
+        return None
+    return date.fromtimestamp(cache_file.stat().st_mtime)
 def validate_prices(prices: pd.DataFrame, tickers: list[str]) -> list[tuple[str, bool]]:
     """Sanity checks on a price table; returns (check name, passed) pairs."""
     have = [t for t in tickers if t in prices.columns]
